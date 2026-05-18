@@ -64,8 +64,17 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
-app.use(express.static(path.join(rootDir, 'dist')));
+app.use(
+  express.static(path.join(rootDir, 'dist'), {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-store');
+      }
+    },
+  }),
+);
 app.get(/.*/, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(rootDir, 'dist', 'index.html'));
 });
 
