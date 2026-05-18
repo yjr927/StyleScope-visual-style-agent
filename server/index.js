@@ -11,6 +11,7 @@ const rootDir = path.resolve(__dirname, '..');
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const model = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
+const appBase = '/StyleScope-visual-style-agent';
 
 app.use(cors());
 app.use(express.json({ limit: '60mb' }));
@@ -64,15 +65,16 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
-app.use(
-  express.static(path.join(rootDir, 'dist'), {
-    setHeaders(res, filePath) {
-      if (filePath.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'no-store');
-      }
-    },
-  }),
-);
+const staticOptions = {
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store');
+    }
+  },
+};
+
+app.use(express.static(path.join(rootDir, 'dist'), staticOptions));
+app.use(appBase, express.static(path.join(rootDir, 'dist'), staticOptions));
 app.get(/.*/, (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(rootDir, 'dist', 'index.html'));
