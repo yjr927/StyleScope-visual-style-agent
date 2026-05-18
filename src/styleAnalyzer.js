@@ -156,3 +156,99 @@ export function formatBytes(bytes) {
   const order = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return `${(bytes / 1024 ** order).toFixed(order ? 1 : 0)} ${units[order]}`;
 }
+
+export function createFallbackReport(assets, projectGoal = '') {
+  const palette = mergePalette(assets);
+  const avgBrightness = average(assets.map((asset) => Number(asset.stats?.brightness || 0.6)));
+  const avgSaturation = average(assets.map((asset) => Number(asset.stats?.saturation || 0.45)));
+  const contrast = average(assets.map((asset) => Number(asset.stats?.contrast || 0.35)));
+  const mood = avgBrightness > 0.66 ? 'luminous' : avgBrightness < 0.38 ? 'low-key' : 'balanced';
+  const colorEnergy = avgSaturation > 0.58 ? 'vivid' : avgSaturation < 0.3 ? 'restrained' : 'moderate';
+  const styleName = `${mood[0].toUpperCase()}${mood.slice(1)} ${colorEnergy} system`;
+
+  return {
+    demoMode: true,
+    source: 'Browser signal analysis · connect an API server for OpenAI vision reasoning',
+    styleName,
+    summary: `The uploaded set reads as a ${mood}, ${colorEnergy} visual language. This browser-only mode uses color, contrast, dimensions, and file-level signals; a deployed API server can add semantic reasoning for objects, typography, layout genre, and finer art-direction language.`,
+    confidence: Math.min(0.72, 0.42 + assets.length * 0.04 + contrast * 0.3),
+    tags: [
+      mood,
+      colorEnergy,
+      contrast > 0.48 ? 'high contrast' : 'soft contrast',
+      assets.length > 8 ? 'large batch' : 'focused batch',
+      projectGoal ? 'goal-aware' : 'general-purpose',
+    ],
+    palette,
+    styleDna: [
+      {
+        label: 'Color behavior',
+        value: `${colorEnergy} saturation with ${mood} value range`,
+        evidence: `Average brightness ${avgBrightness.toFixed(2)}, saturation ${avgSaturation.toFixed(2)}.`,
+      },
+      {
+        label: 'Contrast rhythm',
+        value: contrast > 0.48 ? 'Graphic contrast' : 'Soft tonal transitions',
+        evidence: `Estimated contrast score ${contrast.toFixed(2)} across ${assets.length} assets.`,
+      },
+      {
+        label: 'Asset family',
+        value: assets.length > 6 ? 'Batch-consistent visual system' : 'Small reference board',
+        evidence: `${assets.length} image${assets.length === 1 ? '' : 's'} were analyzed together.`,
+      },
+    ],
+    composition: [
+      'Repeat the strongest colors consistently rather than adding new accent families.',
+      'Keep subject scale and crop logic consistent across the set.',
+      'Use negative space deliberately so the palette and contrast remain recognizable.',
+    ],
+    typography: [
+      'Browser-only mode cannot reliably read typography; prefer a type treatment that visually matches the uploaded assets.',
+      'Keep font weight, casing, and spacing consistent with the reference batch.',
+    ],
+    materials: [
+      'Use the detected palette as the base material system.',
+      'Preserve the same level of texture, grain, shadow, and edge sharpness visible in the source assets.',
+    ],
+    prompt: `Create a new visual in a ${mood}, ${colorEnergy} design style using a palette led by ${palette
+      .slice(0, 5)
+      .map((color) => color.hex)
+      .join(', ')}. Maintain consistent crop logic, ${contrast > 0.48 ? 'strong graphic contrast' : 'soft tonal contrast'}, cohesive spacing, and a polished design-system feel. ${
+      projectGoal ? `Use this goal: ${projectGoal}.` : 'Generate a fresh composition rather than copying any exact uploaded asset.'
+    }`,
+    negativePrompt:
+      'Do not copy exact layouts, logos, characters, watermarks, or text from the references. Avoid introducing unrelated color families, inconsistent lighting, cluttered composition, low-resolution textures, and generic stock-photo styling.',
+    generatorSettings: [
+      'Use the palette swatches as hard constraints.',
+      'Generate 3-5 variations, then choose the one with the closest contrast and saturation match.',
+      'For UI assets, keep radii, stroke weights, shadows, and whitespace consistent.',
+    ],
+    assetNotes: assets.map((asset, index) => `${index + 1}. ${asset.name}: ${asset.stats?.width || '?'}x${asset.stats?.height || '?'} px`),
+  };
+}
+
+function mergePalette(assets) {
+  const colors = assets.flatMap((asset) => asset.stats?.palette || []);
+  const counts = new Map();
+  for (const color of colors) {
+    const hex = String(color).toLowerCase();
+    counts.set(hex, (counts.get(hex) || 0) + 1);
+  }
+
+  const palette = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([hex, count], index) => ({
+      hex,
+      role: index === 0 ? 'Dominant base' : index < 3 ? 'Support tone' : 'Accent / detail',
+      weight: Number((count / Math.max(colors.length, 1)).toFixed(2)),
+    }));
+
+  return palette.length
+    ? palette
+    : [
+        { hex: '#f7f8fa', role: 'Base', weight: 0.4 },
+        { hex: '#15181d', role: 'Text', weight: 0.25 },
+        { hex: '#27c7d9', role: 'Accent', weight: 0.2 },
+      ];
+}

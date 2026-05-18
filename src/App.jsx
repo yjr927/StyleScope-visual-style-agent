@@ -16,7 +16,11 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react';
-import { formatBytes, prepareFiles } from './styleAnalyzer.js';
+import { createFallbackReport, formatBytes, prepareFiles } from './styleAnalyzer.js';
+
+const configuredApiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
+const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const apiBase = configuredApiBase || (isLocalHost ? '' : null);
 
 const emptyReport = {
   styleName: 'Awaiting source board',
@@ -77,7 +81,15 @@ function App() {
     setNotice('');
 
     try {
-      const response = await fetch('/api/analyze', {
+      if (!apiBase) {
+        const payload = createFallbackReport(assets, projectGoal);
+        setReport(payload);
+        setActiveTab('report');
+        setNotice('Browser-only report generated. Deploy an API server for OpenAI vision analysis.');
+        return;
+      }
+
+      const response = await fetch(`${apiBase}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -86,13 +98,25 @@ function App() {
         }),
       });
 
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Analysis API did not return JSON');
+      }
+
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Analysis failed');
       setReport(payload);
       setActiveTab('report');
       setNotice(payload.demoMode ? 'Local demo report generated. Add OPENAI_API_KEY for deeper visual reasoning.' : 'AI style report generated');
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Analysis failed');
+      const payload = createFallbackReport(assets, projectGoal);
+      setReport(payload);
+      setActiveTab('report');
+      setNotice(
+        apiBase
+          ? 'API unavailable, so a browser-only report was generated instead.'
+          : 'Browser-only report generated. Deploy an API server for OpenAI vision analysis.',
+      );
     } finally {
       setIsAnalyzing(false);
     }
